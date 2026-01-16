@@ -9,6 +9,7 @@ import os
 from app.core import settings, init_db
 from app.api.v1 import auth, bots, flows
 from app.api.v1 import flows_import
+from app.api.v1 import flow_templates
 
 # Создание логов директории
 os.makedirs(settings.LOG_DIR, exist_ok=True)
@@ -56,6 +57,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(bots.router, prefix="/api/v1")
 app.include_router(flows.router, prefix="/api/v1")
 app.include_router(flows_import.router, prefix="/api/v1", tags=["flows-import"])
+app.include_router(flow_templates.router, prefix="/api/v1", tags=["flow-templates"])
 
 # Инициализация БД при запуске
 @app.on_event("startup")
