@@ -12,6 +12,9 @@ import 'reactflow/dist/style.css';
 import TextNode from './nodes/TextNode';
 import ButtonNode from './nodes/ButtonNode';
 import ConditionNode from './nodes/ConditionNode';
+import ImageNode from './nodes/ImageNode';  
+import VideoNode from './nodes/VideoNode'; 
+import DelayNode from './nodes/DelayNode'; 
 import Sidebar from './Sidebar';
 import Toolbar from './Toolbar';
 import { flowsApi } from '../api/flowsApi';
@@ -20,6 +23,9 @@ const nodeTypes = {
   textNode: TextNode,
   buttonNode: ButtonNode,
   conditionNode: ConditionNode,
+  imageNode: ImageNode,     
+  videoNode: VideoNode,      
+  delayNode: DelayNode,
 };
 
 const initialNodes = [

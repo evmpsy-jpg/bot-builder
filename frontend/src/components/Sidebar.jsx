@@ -59,6 +59,30 @@ export default function Sidebar() {
       >
         ❓ Condition
       </div>
+
+      <div
+        style={{...itemStyle, border: '2px solid #9333ea', background: '#faf5ff'}}
+        onDragStart={(event) => onDragStart(event, 'imageNode')}
+        draggable
+      >
+        📷 Image
+      </div>
+
+      <div
+        style={{...itemStyle, border: '2px solid #db2777', background: '#fdf2f8'}}
+        onDragStart={(event) => onDragStart(event, 'videoNode')}
+        draggable
+      >
+        🎥 Video
+      </div>
+
+      <div
+        style={{...itemStyle, border: '2px solid #f59e0b', background: '#fffbeb'}}
+        onDragStart={(event) => onDragStart(event, 'delayNode')}
+        draggable
+      >
+        ⏰ Delay
+      </div>
     </aside>
   );
 }
