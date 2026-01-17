@@ -19,6 +19,8 @@ import Sidebar from './Sidebar';
 import Toolbar from './Toolbar';
 import { flowsApi } from '../api/flowsApi';
 import NodeSettings from './NodeSettings';
+import { validateFlow } from '../utils/flowValidator';
+import ValidationResults from './ValidationResults';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -50,8 +52,9 @@ export default function FlowBuilder() {
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [botId] = useState(1);
   const [saveStatus, setSaveStatus] = useState('');
-  const [selectedNode, setSelectedNode] = useState(null);  // ← НОВОЕ
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);  // ← НОВОЕ
+  const [selectedNode, setSelectedNode] = useState(null); 
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [validationResult, setValidationResult] = useState(null);
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -90,13 +93,13 @@ export default function FlowBuilder() {
     [reactFlowInstance, setNodes],
   );
 
-  // ← НОВОЕ: Обработчик клика по ноде
+  // Обработчик клика по ноде
   const onNodeClick = useCallback((event, node) => {
     setSelectedNode(node);
     setIsSettingsOpen(true);
   }, []);
 
-  // ← НОВОЕ: Сохранение настроек ноды
+  // Сохранение настроек ноды
   const onSaveNodeSettings = useCallback((nodeId, newData) => {
     setNodes((nds) =>
       nds.map((node) => {
@@ -113,51 +116,59 @@ export default function FlowBuilder() {
 
   // Сохранение в API
   const onSave = useCallback(async () => {
-    if (reactFlowInstance) {
-      try {
-        const flow = reactFlowInstance.toObject();
-        
-        const cleanNodes = flow.nodes.map(node => ({
-          id: node.id,
-          type: node.type,
-          position: node.position,
-          data: node.data || {}
-        }));
-        
-        const cleanEdges = flow.edges.map(edge => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: edge.sourceHandle || null,
-          targetHandle: edge.targetHandle || null
-        }));
-        
-        const payload = {
-          bot_id: botId,
-          flow: {
-            nodes: cleanNodes,
-            edges: cleanEdges,
-            name: 'My Bot Flow'
-          }
-        };
-        console.log('Full payload:', JSON.stringify(payload, null, 2));
-        
-        await flowsApi.saveFlow(botId, {
+  if (reactFlowInstance) {
+    // Сначала валидируем
+    const validation = validateFlow(nodes, edges);
+    
+    if (!validation.isValid) {
+      setValidationResult(validation);
+      return; // Не сохраняем если есть ошибки
+    }
+    
+    try {
+      const flow = reactFlowInstance.toObject();
+      
+      const cleanNodes = flow.nodes.map(node => ({
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: node.data || {}
+      }));
+      
+      const cleanEdges = flow.edges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null
+      }));
+      
+      const payload = {
+        bot_id: botId,
+        flow: {
           nodes: cleanNodes,
           edges: cleanEdges,
           name: 'My Bot Flow'
-        });
-        
-        setSaveStatus('✅ Saved to server!');
-        setTimeout(() => setSaveStatus(''), 2000);
-      } catch (error) {
-        console.error('Save error:', error);
-        console.error('Error details:', error.response?.data);
-        setSaveStatus('❌ Save failed!');
-        setTimeout(() => setSaveStatus(''), 2000);
-      }
+        }
+      };
+      console.log('Full payload:', JSON.stringify(payload, null, 2));
+      
+      await flowsApi.saveFlow(botId, {
+        nodes: cleanNodes,
+        edges: cleanEdges,
+        name: 'My Bot Flow'
+      });
+      
+      setSaveStatus('✅ Saved to server!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (error) {
+      console.error('Save error:', error);
+      console.error('Error details:', error.response?.data);
+      setSaveStatus('❌ Save failed!');
+      setTimeout(() => setSaveStatus(''), 2000);
     }
-  }, [reactFlowInstance, botId]);
+  }
+}, [reactFlowInstance, botId, nodes, edges]);
 
   // Загрузка из API
   const onLoad = useCallback(async () => {
@@ -184,6 +195,11 @@ export default function FlowBuilder() {
       setTimeout(() => setSaveStatus(''), 2000);
     }
   }, [setNodes, setEdges]);
+  
+  const onValidate = useCallback(() => {
+  const validation = validateFlow(nodes, edges);
+  setValidationResult(validation);
+  }, [nodes, edges]);
 
   return (
     <div ref={reactFlowWrapper} style={{ width: '100vw', height: '100vh' }}>
@@ -205,7 +221,7 @@ export default function FlowBuilder() {
         <Background variant="dots" gap={12} size={1} />
       </ReactFlow>
       <Sidebar />
-      <Toolbar onSave={onSave} onLoad={onLoad} onClear={onClear} />
+      <Toolbar onSave={onSave} onLoad={onLoad} onClear={onClear} onValidate={onValidate}/>
       {saveStatus && (
         <div style={{
           position: 'absolute',
@@ -223,13 +239,17 @@ export default function FlowBuilder() {
           {saveStatus}
         </div>
       )}
-      {/* ← НОВОЕ: Модалка настроек */}
+      {/* Модалка настроек */}
       <NodeSettings
         node={selectedNode}
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSave={onSaveNodeSettings}
       />
+      <ValidationResults
+          validation={validationResult}
+          onClose={() => setValidationResult(null)}
+        />
     </div>
   );
 }

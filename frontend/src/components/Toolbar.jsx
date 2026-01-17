@@ -1,4 +1,4 @@
-export default function Toolbar({ onSave, onLoad, onClear }) {
+export default function Toolbar({ onSave, onLoad, onClear, onValidate }) {
   const toolbarStyle = {
     position: 'absolute',
     top: '16px',
@@ -25,6 +25,14 @@ export default function Toolbar({ onSave, onLoad, onClear }) {
 
   return (
     <div style={toolbarStyle}>
+      <button
+        onClick={onValidate}
+        style={{...buttonStyle, background: '#8b5cf6'}}
+        onMouseOver={(e) => e.target.style.background = '#7c3aed'}
+        onMouseOut={(e) => e.target.style.background = '#8b5cf6'}
+      >
+        ✓ Validate
+      </button>
       <button
         onClick={onSave}
         style={{...buttonStyle, background: '#3b82f6'}}
