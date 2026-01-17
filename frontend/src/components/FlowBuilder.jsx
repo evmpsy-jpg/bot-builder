@@ -18,6 +18,7 @@ import DelayNode from './nodes/DelayNode';
 import Sidebar from './Sidebar';
 import Toolbar from './Toolbar';
 import { flowsApi } from '../api/flowsApi';
+import NodeSettings from './NodeSettings';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -47,8 +48,10 @@ export default function FlowBuilder() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
-  const [botId] = useState(1); // Временно используем bot_id = 1
+  const [botId] = useState(1);
   const [saveStatus, setSaveStatus] = useState('');
+  const [selectedNode, setSelectedNode] = useState(null);  // ← НОВОЕ
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);  // ← НОВОЕ
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -87,13 +90,33 @@ export default function FlowBuilder() {
     [reactFlowInstance, setNodes],
   );
 
+  // ← НОВОЕ: Обработчик клика по ноде
+  const onNodeClick = useCallback((event, node) => {
+    setSelectedNode(node);
+    setIsSettingsOpen(true);
+  }, []);
+
+  // ← НОВОЕ: Сохранение настроек ноды
+  const onSaveNodeSettings = useCallback((nodeId, newData) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: { ...node.data, ...newData }
+          };
+        }
+        return node;
+      })
+    );
+  }, [setNodes]);
+
   // Сохранение в API
   const onSave = useCallback(async () => {
     if (reactFlowInstance) {
       try {
         const flow = reactFlowInstance.toObject();
         
-        // Очистим ноды от лишних полей ReactFlow
         const cleanNodes = flow.nodes.map(node => ({
           id: node.id,
           type: node.type,
@@ -173,6 +196,7 @@ export default function FlowBuilder() {
         onInit={setReactFlowInstance}
         onDrop={onDrop}
         onDragOver={onDragOver}
+        onNodeClick={onNodeClick}  // ← НОВОЕ
         nodeTypes={nodeTypes}
         fitView
       >
@@ -199,6 +223,13 @@ export default function FlowBuilder() {
           {saveStatus}
         </div>
       )}
+      {/* ← НОВОЕ: Модалка настроек */}
+      <NodeSettings
+        node={selectedNode}
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={onSaveNodeSettings}
+      />
     </div>
   );
 }
