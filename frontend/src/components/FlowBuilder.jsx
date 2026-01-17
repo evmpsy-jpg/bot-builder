@@ -21,6 +21,7 @@ import { flowsApi } from '../api/flowsApi';
 import NodeSettings from './NodeSettings';
 import { validateFlow } from '../utils/flowValidator';
 import ValidationResults from './ValidationResults';
+import FlowsList from './FlowsList';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -55,6 +56,8 @@ export default function FlowBuilder() {
   const [selectedNode, setSelectedNode] = useState(null); 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
+  const [currentFlowId, setCurrentFlowId] = useState(null);
+  const [currentFlowName, setCurrentFlowName] = useState('My Bot Flow');
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -116,68 +119,64 @@ export default function FlowBuilder() {
 
   // Сохранение в API
   const onSave = useCallback(async () => {
-  if (reactFlowInstance) {
-    // Сначала валидируем
-    const validation = validateFlow(nodes, edges);
-    
-    if (!validation.isValid) {
-      setValidationResult(validation);
-      return; // Не сохраняем если есть ошибки
-    }
-    
-    try {
-      const flow = reactFlowInstance.toObject();
+    if (reactFlowInstance) {
+      // Сначала валидируем
+      const validation = validateFlow(nodes, edges);
       
-      const cleanNodes = flow.nodes.map(node => ({
-        id: node.id,
-        type: node.type,
-        position: node.position,
-        data: node.data || {}
-      }));
+      if (!validation.isValid) {
+        setValidationResult(validation);
+        return;
+      }
       
-      const cleanEdges = flow.edges.map(edge => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        sourceHandle: edge.sourceHandle || null,
-        targetHandle: edge.targetHandle || null
-      }));
-      
-      const payload = {
-        bot_id: botId,
-        flow: {
+      try {
+        const flow = reactFlowInstance.toObject();
+        
+        const cleanNodes = flow.nodes.map(node => ({
+          id: node.id,
+          type: node.type,
+          position: node.position,
+          data: node.data || {}
+        }));
+        
+        const cleanEdges = flow.edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: edge.sourceHandle || null,
+          targetHandle: edge.targetHandle || null
+        }));
+        
+        const result = await flowsApi.saveFlow(botId, {
           nodes: cleanNodes,
           edges: cleanEdges,
-          name: 'My Bot Flow'
+          name: currentFlowName
+        }, currentFlowId);
+        
+        // Сохраняем flow_id если это новый flow
+        if (!currentFlowId && result.flow_id) {
+          setCurrentFlowId(result.flow_id);
         }
-      };
-      console.log('Full payload:', JSON.stringify(payload, null, 2));
-      
-      await flowsApi.saveFlow(botId, {
-        nodes: cleanNodes,
-        edges: cleanEdges,
-        name: 'My Bot Flow'
-      });
-      
-      setSaveStatus('✅ Saved to server!');
-      setTimeout(() => setSaveStatus(''), 2000);
-    } catch (error) {
-      console.error('Save error:', error);
-      console.error('Error details:', error.response?.data);
-      setSaveStatus('❌ Save failed!');
-      setTimeout(() => setSaveStatus(''), 2000);
+        
+        setSaveStatus('✅ Saved to server!');
+        setTimeout(() => setSaveStatus(''), 2000);
+      } catch (error) {
+        console.error('Save error:', error);
+        setSaveStatus('❌ Save failed!');
+        setTimeout(() => setSaveStatus(''), 2000);
+      }
     }
-  }
-}, [reactFlowInstance, botId, nodes, edges]);
+  }, [reactFlowInstance, botId, nodes, edges, currentFlowId, currentFlowName]);
 
-  // Загрузка из API
+  // Загрузка активного flow
   const onLoad = useCallback(async () => {
     try {
-      const data = await flowsApi.getFlow(botId);
-      if (data && data.flow) {
-        setNodes(data.flow.nodes || []);
-        setEdges(data.flow.edges || []);
-        setSaveStatus('✅ Loaded from server!');
+      const data = await flowsApi.listFlows(botId);
+      const activeFlow = data.flows?.find(f => f.is_active);
+      
+      if (activeFlow) {
+        onSelectFlow(activeFlow.flow_id);
+      } else {
+        setSaveStatus('⚠️ No active flow found!');
         setTimeout(() => setSaveStatus(''), 2000);
       }
     } catch (error) {
@@ -185,7 +184,60 @@ export default function FlowBuilder() {
       setSaveStatus('⚠️ No saved flow found!');
       setTimeout(() => setSaveStatus(''), 2000);
     }
+  }, [botId]);
+
+  // Выбор конкретного flow
+  const onSelectFlow = useCallback(async (flowId) => {
+    try {
+      const data = await flowsApi.getFlow(botId, flowId);
+      if (data && data.flow) {
+        setNodes(data.flow.nodes || []);
+        setEdges(data.flow.edges || []);
+        setCurrentFlowId(flowId);
+        setCurrentFlowName(data.name || 'Untitled Flow');
+        setSaveStatus('✅ Flow loaded!');
+        setTimeout(() => setSaveStatus(''), 2000);
+      }
+    } catch (error) {
+      console.error('Load error:', error);
+      setSaveStatus('❌ Failed to load flow!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    }
   }, [botId, setNodes, setEdges]);
+
+  // Создание нового flow
+  const onNewFlow = useCallback(() => {
+    if (confirm('Create a new flow? Current changes will be cleared.')) {
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+      setCurrentFlowId(null);
+      setCurrentFlowName('New Flow');
+      setSaveStatus('✅ New flow created!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    }
+  }, [setNodes, setEdges]);
+
+  // Удаление flow
+  const onDeleteFlow = useCallback(async (flowId) => {
+    try {
+      await flowsApi.deleteFlow(botId, flowId);
+      
+      // Если удалили текущий flow - создаём новый
+      if (flowId === currentFlowId) {
+        setNodes(initialNodes);
+        setEdges(initialEdges);
+        setCurrentFlowId(null);
+        setCurrentFlowName('New Flow');
+      }
+      
+      setSaveStatus('✅ Flow deleted!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (error) {
+      console.error('Delete error:', error);
+      setSaveStatus('❌ Failed to delete flow!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    }
+  }, [botId, currentFlowId, setNodes, setEdges]);
 
   const onClear = useCallback(() => {
     if (confirm('Are you sure you want to clear the flow?')) {
@@ -197,8 +249,8 @@ export default function FlowBuilder() {
   }, [setNodes, setEdges]);
   
   const onValidate = useCallback(() => {
-  const validation = validateFlow(nodes, edges);
-  setValidationResult(validation);
+    const validation = validateFlow(nodes, edges);
+    setValidationResult(validation);
   }, [nodes, edges]);
 
   return (
@@ -212,7 +264,7 @@ export default function FlowBuilder() {
         onInit={setReactFlowInstance}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        onNodeClick={onNodeClick}  // ← НОВОЕ
+        onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         fitView
       >
@@ -221,6 +273,13 @@ export default function FlowBuilder() {
         <Background variant="dots" gap={12} size={1} />
       </ReactFlow>
       <Sidebar />
+      <FlowsList
+        botId={botId}
+        currentFlowId={currentFlowId}
+        onSelectFlow={onSelectFlow}
+        onNewFlow={onNewFlow}
+        onDeleteFlow={onDeleteFlow}
+      />
       <Toolbar onSave={onSave} onLoad={onLoad} onClear={onClear} onValidate={onValidate}/>
       {saveStatus && (
         <div style={{
@@ -239,7 +298,6 @@ export default function FlowBuilder() {
           {saveStatus}
         </div>
       )}
-      {/* Модалка настроек */}
       <NodeSettings
         node={selectedNode}
         isOpen={isSettingsOpen}
@@ -247,9 +305,9 @@ export default function FlowBuilder() {
         onSave={onSaveNodeSettings}
       />
       <ValidationResults
-          validation={validationResult}
-          onClose={() => setValidationResult(null)}
-        />
+        validation={validationResult}
+        onClose={() => setValidationResult(null)}
+      />
     </div>
   );
 }

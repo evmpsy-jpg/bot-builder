@@ -1,32 +1,39 @@
 import axios from 'axios';
 
-const API_URL = 'http://62.113.104.172:8000/api';
+const API_BASE_URL = 'http://62.113.104.172:8000/api';
 
 export const flowsApi = {
-  // Сохранить flow
-  saveFlow: async (botId, flow) => {
-    const response = await axios.post(`${API_URL}/flows/save`, {
+  // Сохранить flow (создать или обновить)
+  saveFlow: async (botId, flow, flowId = null) => {
+    const response = await axios.post(`${API_BASE_URL}/flows/save`, {
       bot_id: botId,
-      flow: flow
+      flow: flow,
+      flow_id: flowId
     });
     return response.data;
   },
 
-  // Получить flow
-  getFlow: async (botId) => {
-    const response = await axios.get(`${API_URL}/flows/${botId}`);
+  // Получить список всех flows для бота
+  listFlows: async (botId) => {
+    const response = await axios.get(`${API_BASE_URL}/flows/${botId}`);
     return response.data;
   },
 
-  // Список всех flows
-  listFlows: async () => {
-    const response = await axios.get(`${API_URL}/flows`);
+  // Получить конкретный flow
+  getFlow: async (botId, flowId) => {
+    const response = await axios.get(`${API_BASE_URL}/flows/${botId}/${flowId}`);
     return response.data;
   },
 
   // Удалить flow
-  deleteFlow: async (botId) => {
-    const response = await axios.delete(`${API_URL}/flows/${botId}`);
+  deleteFlow: async (botId, flowId) => {
+    const response = await axios.delete(`${API_BASE_URL}/flows/${botId}/${flowId}`);
+    return response.data;
+  },
+
+  // Активировать flow
+  activateFlow: async (botId, flowId) => {
+    const response = await axios.put(`${API_BASE_URL}/flows/${botId}/${flowId}/activate`);
     return response.data;
   }
 };
